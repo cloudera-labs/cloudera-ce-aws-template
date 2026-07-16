@@ -31,7 +31,7 @@ ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbo
 
 ## Documentation
 
-> **[View the full documentation site](<YOUR_DOCS_SITE_URL>)**
+> **[View the full documentation site](https://cloudera-labs.github.io/cldr-ce-aws-template/)**
 
 Setup instructions, configuration reference, and operational guides are also available in the **[docs/](docs/)** directory.
 
