@@ -50,3 +50,6 @@ config.yml
 # Per-deployment artifacts
 *-summary.html
 *.crt
+
+# Documentation build artifacts
+docs/zensical/_build
