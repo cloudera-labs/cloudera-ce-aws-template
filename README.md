@@ -12,32 +12,69 @@
      See the License for the specific language governing permissions and
      limitations under the License. -->
 
-# Cloudera On Premise Community Edition
+# Prerequisites
 
-Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Constructs a ring-fenced, 10-node cluster accessible via SSH and reverse HTTPS proxies.
+All code dependencies are packaged in an Ansible Execution Environment (container image), so setup is minimal.
 
-- Self-contained DNS, Kerberos, database, and TLS services
-- ACME-managed TLS termination on the reverse proxy
-- Cloudera Manager with Kerberos and Auto-TLS
-- Multiple cluster topologies (Ozone, Kafka, Flink, NiFi, CSA, ECS)
-- Fully idempotent — run repeatedly with no unintended state changes
+## Requirements
 
-## Quick Start
+1. **This project** — the source code
+2. **Container runtime** — Docker or Podman
+3. **AWS credentials** — via AWS SSO
+4. **Cloudera Private Cloud license** — the text file (not the zip)
+
+## Source Code
+
+Clone the project to your workspace:
 
 ```bash
-cp config-template.yml config.yml    # Set name_prefix, infra_region, common_password, owner
-ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml -e @config.yml
+git clone https://<YOUR_GIT_HOST>/<YOUR_REPO_NAME>.git
+cd <YOUR_REPO_NAME_ONLY>
 ```
 
-## Documentation
+## Execution Environment
 
-> **[View the full documentation site](https://cloudera-labs.github.io/cldr-ce-aws-template/)**
+Install `ansible-navigator` in a Python virtual environment:
 
-Setup instructions, configuration reference, and operational guides are also available in the **[docs/](docs/)** directory.
+```bash
+python -m venv ~/cdp-navigator
+source ~/cdp-navigator/bin/activate
+pip install ansible-core ansible-navigator
+```
 
-| Section | Description |
-|---------|-------------|
-| [Getting Started](docs/getting-started/) | Prerequisites, credentials, configuration |
-| [Deployment](docs/deployment/) | Infrastructure, services, Cloudera Manager, clusters |
-| [Operations](docs/operations/) | Accessing endpoints, SSH, tear down |
-| [Reference](docs/reference/) | Architecture, execution environment |
+!!! note
+    You will need either **Docker** or **Podman** installed and running.
+
+!!! tip
+    If you need to troubleshoot this setup, check the [Navigator documentation](https://github.com/cloudera-labs/cldr-runner/blob/main/NAVIGATOR.md).
+
+## AWS Credentials
+
+!!! warning
+    It is assumed you are using AWS SSO.
+
+Log into AWS to get fresh credentials:
+
+```bash
+aws sso login --profile YOUR_AWS_PROFILE
+```
+
+Populate your environment with the AWS credentials:
+
+```bash
+eval $(aws configure export-credentials --format env --profile YOUR_AWS_PROFILE)
+```
+
+!!! warning
+    AWS SSO credentials expire after 8 hours. If playbooks fail with credential errors, refresh your session with the commands above.
+
+## CDP License
+
+Set the license file location in your environment:
+
+```bash
+export CDP_LICENSE_FILE=LOCAL_FILE_PATH_TO_YOUR_LICENSE
+```
+
+!!! tip
+    Use the **text file** of the license, not the `.zip` file.
