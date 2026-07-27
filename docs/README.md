@@ -52,8 +52,8 @@ This project provides Ansible + Terraform automation for deploying Cloudera Priv
 Clone the project to your workspace:
 
 ```bash
-git clone https://github.com/cloudera-labs/cldr-ce-aws-template.git
-cd cldr-ce-aws-template
+git clone https://<YOUR_GIT_HOST>/<YOUR_REPO_NAME>.git
+cd <YOUR_REPO_NAME_ONLY>
 ```
 
 
