@@ -42,6 +42,17 @@ lint = [
   "ansible-lint --fix",
 ]
 
+[tool.hatch.envs.docs]
+python = "3.12"
+detached = true
+dependencies = [
+  "zensical",
+]
+
+[tool.hatch.envs.docs.scripts]
+serve = "zensical serve"
+build = "zensical build"
+
 [build-system]
 requires = [
   "hatchling",
