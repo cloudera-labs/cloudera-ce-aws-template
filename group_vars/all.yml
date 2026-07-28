@@ -67,6 +67,7 @@ enable_prereq_freeipa_client: true
 cloudera_manager_database_password: "{{ common_password }}"
 cloudera_manager_admin_password: "{{ common_password }}"
 reports_manager_password: "{{ common_password }}"
+cloudera_ecs_admin_password: "{{ common_password }}"
 freeipa_password: "{{ common_password }}"
 database_admin_user: "db_admin"
 database_admin_password: "{{ common_password }}"
