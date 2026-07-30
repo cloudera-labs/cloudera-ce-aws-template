@@ -54,7 +54,7 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 # caddy_self_signed: true
 # kerberos_realm: "CLDR.INTERNAL"
 # dns_domain: "cldr.internal"
-# public_domain: "pvc.cloudera-labs.com"
+# public_domain: "nip.io" # Externally routable domain for reverse proxy endpoints. See https://sslip.io/
 
 ### ECS-specific versions (only required for ECS topology)
 #
@@ -75,6 +75,7 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 # cloudera_manager_database_password: "{{ common_password }}"
 # cloudera_manager_admin_password: "{{ common_password }}"
 # reports_manager_password: "{{ common_password }}"
+# cloudera_ecs_admin_password: "{{ common_password }}"
 # freeipa_password: "{{ common_password }}"
 # database_admin_user: "db_admin"
 # database_admin_password: "{{ common_password }}"

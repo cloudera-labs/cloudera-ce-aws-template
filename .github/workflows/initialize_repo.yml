@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -70,7 +70,7 @@ jobs:
 
           # Replace placeholders across all relevant files
           # Note: <YOUR_REPO_NAME_ONLY> is replaced before <YOUR_REPO_NAME> to avoid partial matches
-          find . -type f \( -name "*.md" -o -name "*.yml" -o -name "*.yaml" \) \
+          find . -type f \( -name "*.toml" -name "*.md" -o -name "*.yml" -o -name "*.yaml" \) \
             -not -path "./.git/*" \
             -not -path "./.github/workflows/*" \
             -exec sed -i \
