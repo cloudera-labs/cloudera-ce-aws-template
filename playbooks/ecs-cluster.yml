@@ -40,6 +40,20 @@
     BASE_CLUSTER_NAME: "ozone-base-cluster"
 
   tasks:
+
+    - name: Assert cloudera_ecs_admin_password meets complexity requirements
+      ansible.builtin.assert:
+        that:
+          - cloudera_ecs_admin_password | length >= 8
+          - cloudera_ecs_admin_password is regex('[A-Z]')
+          - cloudera_ecs_admin_password is regex('[a-z]')
+          - cloudera_ecs_admin_password is regex('[0-9]')
+          - cloudera_ecs_admin_password is regex('[#&*$%@^._!]')
+        fail_msg: >-
+          cloudera_ecs_admin_password must be at least 8 characters and contain at least one
+          uppercase letter, one lowercase letter, one number, and one symbol (#, &, *, $, %, @, ^, ., _, !).
+        quiet: true
+
     - name: Retrieve parcels defails from CM config
       cloudera.cluster.cm_config_info:
         view: full
@@ -272,6 +286,14 @@
           Database:
             Mode: embedded
             EmbeddedDbStorage: 200
+          Services:
+            thunderheadusermanagementprivate:
+              Config:
+                database:
+                  name: db-ums
+                admin:
+                  username: admin
+                  password: "{{ cloudera_ecs_admin_password }}"
           Vault:
             Mode: embedded
             EmbeddedDbStorage: 20
