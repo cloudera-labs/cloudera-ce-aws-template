@@ -228,6 +228,29 @@
     - cloudera.exe.freeipa_server
     - cloudera.exe.freeipa_server_users
 
+- name: Create FreeIPA groups for external auth mappings
+  hosts: freeipa
+  gather_facts: false
+  become: true
+  tags:
+    - freeipa
+    - freeipa_server
+  vars:
+    ipaadmin_principal: "admin"
+    ipaadmin_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
+    ipaserver_host: "{{ inventory_hostname }}"
+  tasks:
+    - name: Create FreeIPA groups
+      community.general.ipa_group:
+        name: "{{ __group }}"
+        ipa_pass: "{{ ipaadmin_password }}"
+        ipa_user: "{{ ipaadmin_principal }}"
+        ipa_host: "{{ ipaserver_host }}"
+      loop: "{{ external_auth_user_mappings | map(attribute='name') }}"
+      loop_control:
+        loop_var: __group
+        label: "{{ __group }}"
+
 - name: Update FreeIPA httpd rewrites
   hosts: freeipa
   gather_facts: false
