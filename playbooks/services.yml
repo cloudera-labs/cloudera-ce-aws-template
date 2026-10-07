@@ -114,6 +114,7 @@
         ecs_control_plane_domain: "console-cdp.apps.ecs.{{ ansible_host }}.{{ public_domain }}"
         prometheus_domain: "prometheus.{{ ansible_host }}.{{ public_domain }}"
         grafana_domain: "grafana.{{ ansible_host }}.{{ public_domain }}"
+        keycloak_domain: "keycloak.{{ ansible_host }}.{{ public_domain }}"
 
     - name: Install FreeIPA reverse proxy
       ansible.builtin.template:
@@ -123,6 +124,17 @@
       vars:
         external_domain: "freeipa.{{ external_subdomain }}.{{ public_domain }}"
         freeipa_fqdn: "{{ groups['freeipa'] | first }}"
+      notify: Reload Caddy
+
+    - name: Install Keycloak reverse proxy
+      when: enable_keycloak | default(false)
+      ansible.builtin.template:
+        src: keycloak.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/keycloak.caddyfile
+        mode: "0644"
+      vars:
+        external_domain: "keycloak.{{ external_subdomain }}.{{ public_domain }}"
+        keycloak_fqdn: "{{ groups['keycloak'] | first }}:8543"
       notify: Reload Caddy
 
     - name: Install pgAdmin reverse proxy
@@ -411,6 +423,98 @@
   roles:
     - cloudera.exe.docker
     - cloudera.exe.pgadmin
+
+- name: Provision Keycloak services
+  hosts: keycloak
+  gather_facts: true
+  become: true
+  tags:
+    - keycloak
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    external_subdomain: "{{ lookup('cloud.terraform.tf_output', 'gateways', project_path=tf_inventory) | map(attribute='public_ip') | first }}"
+    keycloak_admin_username: "temp-admin" # Temporary user created at Keycloak launch 
+    ### Set in config.yml as global vars
+    # keycloak_admin_password:
+  tasks:
+
+    - name: Provision Keycloak
+      when: enable_keycloak | default(false)
+      block:
+        - name: Create group for keycloak
+          ansible.builtin.group:
+            name: "keycloak"
+            state: present
+
+        - name: Create user for keycloak
+          ansible.builtin.user:
+            name: "keycloak"
+            comment: "Keycloak User"
+            group: "keycloak"
+            state: present
+
+        - name: Create TLS cert for Keycloak
+          ansible.builtin.import_role:
+            name: cloudera.exe.freeipa_server_enrolled_tls
+          vars:
+            enrolled_hostname: "{{ inventory_hostname }}"
+            ipaadmin_password: "{{ common_password }}"
+            enrolled_cert_key_path: "/etc/pki/tls/private/keycloak.key"
+            enrolled_cert_path: "/etc/pki/tls/certs/keycloak.crt"
+            enrolled_file_owner: "keycloak"
+            enrolled_file_group: "keycloak"
+
+        - name: Install Docker
+          ansible.builtin.import_role:
+            name: cloudera.exe.docker
+          vars:
+            docker_users:
+              - "keycloak"
+
+        - name: Deploy Keycloak container
+          ansible.builtin.import_role:
+            name: cloudera.exe.keycloak_container
+          vars:
+            keycloak_https_enabled: true
+            keycloak_tls_cert_path: /etc/pki/tls/certs/keycloak.crt
+            keycloak_tls_key_path: /etc/pki/tls/private/keycloak.key
+
+- name: Configure Keycloak Admin User
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - keycloak
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    external_subdomain: "{{ lookup('cloud.terraform.tf_output', 'gateways', project_path=tf_inventory) | map(attribute='public_ip') | first }}"
+    keycloak_auth_keycloak_url: "https://keycloak.{{ external_subdomain }}.{{ public_domain }}"
+    keycloak_auth_username: "temp-admin"
+    keycloak_auth_password: "{{ keycloak_admin_password }}"
+    keycloak_auth_validate_certs: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+    ### Set in config.yml as global vars
+    # keycloak_useraccounts
+  tasks:
+
+    - name: Configure Keycloak admin user
+      when: enable_keycloak | default(false)
+      block:
+        - name: "Check Keycloak availability at {{ keycloak_auth_keycloak_url }}"
+          ansible.builtin.uri:
+            url: "{{ keycloak_auth_keycloak_url }}"
+            method: GET
+            validate_certs: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+            status_code: [200]
+            timeout: 10
+          register: __keycloak_response
+          until: __keycloak_response.status in [200]
+          retries: 60
+          delay: 10
+          changed_when: false
+
+        - name: Setup Keycloak Admin User
+          ansible.builtin.import_role:
+            name: cloudera.exe.keycloak_users
 
 - name: Enable and configure hosts for ECS deployment
   hosts: ecs

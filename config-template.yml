@@ -64,7 +64,7 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 # ecs_parcel_repo_url: https://archive.cloudera.com/p/cdp-pvc-ds/{{ ecs_version }}/parcels/
 
 ### Feature toggles
-#
+# enable_keycloak: true
 # enable_prometheus: true                       # Node Exporter, Prometheus, Grafana
 # enable_freeipa_wildcard_profile: true         # Wildcard cert profile in FreeIPA (ECS)
 # enable_postgres_tls: true                     # PostgreSQL TLS enrollment via FreeIPA
@@ -81,6 +81,8 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 # database_admin_password: "{{ common_password }}"
 # pgadmin_default_email: "{{ owner_email }}"
 # pgadmin_default_password: "{{ common_password }}"
+# grafana_security_admin_password: "{{ common_password }}"
+# keycloak_admin_password: "{{ common_password }}"
 
 ### Services credentials
 #
@@ -100,19 +102,6 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 #   deploy-tool: cloudera-deploy
 #   cloudera-project: "PVC Community Edition"
 #   owner: "{{ owner_email }}"
-
-### Infrastructure definition (override Terraform defaults)
-#
-# infra:
-#   nodes:
-#     gateway:     { count: 1, instance_type: "t3a.medium",  root_volume_size: 100 }
-#     services:    { count: 1, instance_type: "t3a.large",   root_volume_size: 500 }
-#     masters:     { count: 3, instance_type: "t3a.xlarge",  root_volume_size: 250 }
-#     workers:     { count: 4, instance_type: "t3a.xlarge",  root_volume_size: 250 }
-#     cms:         { count: 1, instance_type: "r5a.xlarge",  root_volume_size: 300 }
-#     sdx:         { count: 1, instance_type: "t3a.xlarge",  root_volume_size: 500 }
-#     ecs-masters: { count: 1, instance_type: "r5a.4xlarge", root_volume_size: 600 }
-#     ecs-workers: { count: 3, instance_type: "r5a.4xlarge", root_volume_size: 500 }
 
 ### SSH key (uncomment to use a pre-existing key instead of generating one)
 #
