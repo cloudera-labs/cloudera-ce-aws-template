@@ -43,6 +43,9 @@ resource "ansible_group" "pgadmin" {
   name = "pgadmin"
 }
 
+resource "ansible_group" "keycloak" {
+  name = "keycloak"
+}
 resource "ansible_group" "manager" {
   name = "cloudera_manager"
 }

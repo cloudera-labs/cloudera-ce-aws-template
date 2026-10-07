@@ -122,7 +122,8 @@ resource "ansible_host" "services" {
   groups = [
     ansible_group.freeipa.name,
     ansible_group.postgres.name,
-    ansible_group.pgadmin.name
+    ansible_group.pgadmin.name,
+    ansible_group.keycloak.name
   ]
 
   variables = {

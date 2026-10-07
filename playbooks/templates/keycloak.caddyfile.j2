@@ -1,0 +1,8 @@
+{{ external_domain }} {
+  reverse_proxy https://{{ keycloak_fqdn }} {
+    header_up Host {host}
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}

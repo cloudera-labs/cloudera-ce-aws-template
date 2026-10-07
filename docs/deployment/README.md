@@ -19,7 +19,7 @@ The deployment runs in four stages, each handled by a dedicated playbook:
 | Stage | Playbook | Duration | Purpose |
 |-------|----------|----------|---------|
 | 1. Infrastructure | `infrastructure.yml` | ~10 min | AWS networking and hosts via Terraform |
-| 2. Services | `services.yml` | ~15 min | DNS, Kerberos, database, proxy, monitoring |
+| 2. Services | `services.yml` | ~15 min | DNS, Kerberos, database, identity, proxy, monitoring |
 | 3. Cloudera Manager | `cms.yml` | ~10 min | CM server, agents, AutoTLS, LDAP |
 | 4. Cluster | `*-cluster.yml` | ~15 min | CDP Runtime cluster deployment |
 

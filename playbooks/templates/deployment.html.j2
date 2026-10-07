@@ -95,6 +95,12 @@
           <td scope="col">FreeIPA</td>
           <td><a target="_blank" href="https://{{ freeipa_domain }}/ipa/ui/">{{ freeipa_domain }}/ipa/ui/</a></td>
         </tr>
+{% if enable_keycloak | default(false) %}
+        <tr>
+          <td scope="col">Keycloak</td>
+          <td><a target="_blank" href="https://{{ keycloak_domain }}">{{ keycloak_domain }}</a></td>
+        </tr>
+{% endif %}
         <tr>
           <td scope="col">pgAdmin</td>
           <td><a target="_blank" href="https://{{ pgadmin_domain }}">{{ pgadmin_domain }}</a></td>

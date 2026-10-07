@@ -40,8 +40,12 @@ All services are accessed through the Caddy reverse proxy on the gateway host:
 | Knox Gateway | `https://knox.<gateway_ip>.<public_domain>/gateway/homepage/home` |
 | FreeIPA | `https://freeipa.<gateway_ip>.<public_domain>` |
 | pgAdmin | `https://pgadmin.<gateway_ip>.<public_domain>` |
+| Keycloak | `https://keycloak.<gateway_ip>.<public_domain>` |
 | Prometheus | `https://prometheus.<gateway_ip>.<public_domain>` |
 | Grafana | `https://grafana.<gateway_ip>.<public_domain>` |
+
+!!! note
+    Keycloak endpoint is only available when `enable_keycloak: true`.
 
 !!! note
     Prometheus and Grafana endpoints are only available when `enable_prometheus: true`.
@@ -71,5 +75,6 @@ You can install this CA into your local truststore to avoid browser certificate 
 | FreeIPA | `admin` | `<freeipa_password>` |
 | pgAdmin | `<owner_email>` | `<pgadmin_default_password>` |
 | PostgreSQL | `<database_admin_user>` | `<database_admin_password>` |
+| Keycloak | `admin` | `<keycloak_admin_password>` |
 
 All passwords default to `{{ common_password }}` unless explicitly overridden in `config.yml`.

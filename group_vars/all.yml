@@ -59,6 +59,7 @@ dns_domain: "cldr.internal" # Non-routable, internal domain managed by the local
 public_domain: "nip.io" # Externally routable domain for reverse proxy endpoints 
 
 ### Feature toggles (see services.yml for usage)
+enable_keycloak: true
 enable_prometheus: true
 enable_freeipa_wildcard_profile: true
 enable_postgres_tls: true
@@ -75,6 +76,7 @@ database_admin_password: "{{ common_password }}"
 pgadmin_default_email: "{{ owner_email }}"
 pgadmin_default_password: "{{ common_password }}"
 grafana_security_admin_password: "{{ common_password }}"
+keycloak_admin_password: "{{ common_password }}"
 
 ### Services credentials
 ranger_password: "{{ common_password }}"
@@ -103,6 +105,17 @@ external_auth_user_mappings:
     type: LDAP
     auth_roles:
       - ROLE_OPERATOR
+
+### Keycloak Admin User Account
+keycloak_useraccounts:
+  - username: admin
+    firstName: Admin
+    lastName: User
+    email: admin@{{ dns_domain }}
+    password: "{{ keycloak_admin_password }}"
+    realm_name: master
+    realm_roles:  # Optional: list of realm roles to assign
+      - admin
 
 # Pin FreeIPA package to overcome missing Samba package issue
 freeipa_client_packages:

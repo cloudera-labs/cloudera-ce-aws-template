@@ -75,6 +75,7 @@ development and testing environments.
 ### Feature Toggles
 
 ```yaml
+enable_keycloak: false                   # Keycloak identity provider
 enable_prometheus: false                 # Node Exporter, Prometheus, Grafana
 enable_freeipa_wildcard_profile: false   # Wildcard cert profile in FreeIPA (for ECS)
 enable_postgres_tls: false               # PostgreSQL TLS enrollment via FreeIPA

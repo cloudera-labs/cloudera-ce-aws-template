@@ -24,6 +24,7 @@ The services playbook configures all supporting infrastructure services on the p
 | FreeIPA | Services host | DNS, Kerberos KDC, certificate authority |
 | PostgreSQL | Services host | Databases for CM and services |
 | pgAdmin | Services host | Database administration UI |
+| Keycloak | Services host | Identity and access management (when enabled) |
 | Caddy | Gateway | Reverse proxy with TLS termination |
 | Node Exporter | All hosts | System metrics (when monitoring enabled) |
 | Prometheus | Services host | Metrics collection (when monitoring enabled) |
@@ -46,6 +47,7 @@ ansible-navigator run playbooks/services.yml -e @config.yml
 | `freeipa_client` | FreeIPA client enrollment |
 | `database` | PostgreSQL and pgAdmin |
 | `pgadmin` | pgAdmin setup |
+| `keycloak` | Keycloak identity provider |
 | `monitoring` | Prometheus, Grafana, Node Exporter |
 | `ecs_dns` | ECS DNS record provisioning |
 
@@ -55,6 +57,7 @@ These are controlled via `config.yml` or `group_vars/all.yml`:
 
 | Variable | Default | Effect |
 |----------|---------|--------|
+| `enable_keycloak` | `false` | Deploys Keycloak identity provider with TLS |
 | `enable_prometheus` | `true` | Deploys Node Exporter, Prometheus, and Grafana |
 | `enable_freeipa_wildcard_profile` | `true` | Creates wildcard certificate profile in FreeIPA |
 | `enable_postgres_tls` | `true` | Enrolls PostgreSQL with FreeIPA-signed TLS certs |
@@ -68,6 +71,10 @@ After the services playbook completes, the following endpoints are available via
 - `https://freeipa.<gateway_ip>.<public_domain>` — FreeIPA Web UI
 - `https://pgadmin.<gateway_ip>.<public_domain>` — pgAdmin
 - `https://knox.<gateway_ip>.<public_domain>` — Knox Gateway
+
+When Keycloak is enabled:
+
+- `https://keycloak.<gateway_ip>.<public_domain>` — Keycloak Admin Console
 
 When monitoring is enabled:
 
