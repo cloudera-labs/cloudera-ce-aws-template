@@ -35,7 +35,7 @@ Host jump
   StrictHostKeyChecking no
 
 %{ for node in local.proxied_hosts ~}
-Host ${node.tags.Name} ${node.tags.Name}.cldr.internal
+Host ${node.tags.Name} ${node.tags.Name}.${var.private_domain}
   HostName ${node.private_ip}
   User ${local.ami_user}
   IdentityFile ${local.private_key_file}
