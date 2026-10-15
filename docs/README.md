@@ -24,7 +24,7 @@ This project provides Ansible + Terraform automation for deploying Cloudera Priv
 - Kerberos and Auto-TLS configuration
 - Multiple cluster topology options:
     - Ozone-enabled base cluster
-    - CSA (Cloudera Streaming Analytics) full cluster
+    - Streaming service cluster (Flink/SQL Stream Builder, Streams Messaging Manager, and NiFi)
     - Base cluster with a comprehensive set of Cloudera services enabled
     - ECS (Experience Cluster Services) with Data Services
 
