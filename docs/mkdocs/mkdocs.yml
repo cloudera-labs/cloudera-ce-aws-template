@@ -67,6 +67,7 @@ nav:
   - Operations:
       - Accessing the Deployment: 'operations/README.md'
       - SSH Access: 'operations/ssh.md'
+      - Pause and Resume: 'operations/pause-resume.md'
       - Tear Down: 'operations/teardown.md'
   - Reference:
       - Architecture: 'reference/README.md'

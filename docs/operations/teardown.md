@@ -36,6 +36,9 @@ ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml
 !!! tip
     The local files (`terraform.tfstate`, SSH key, summary HTML) remain in your project directory. Delete them manually if you want a completely clean slate.
 
+!!! tip
+    Planning to use this deployment again? [Pause and Resume](pause-resume.md) stops it without destroying anything.
+
 ## Partial Tear Down
 
 If you only want to remove the Terraform-managed infrastructure without destroying everything:
