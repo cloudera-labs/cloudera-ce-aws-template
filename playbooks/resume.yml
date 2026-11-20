@@ -31,3 +31,59 @@
         region: "{{ infra_region }}"
         state: running
         instance_ids: "{{ __deployment.instances | map(attribute='instance_id') | list }}"
+
+- name: Start the cluster services
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/cloudera.cluster.deployment:
+      host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ (caddy_self_signed is defined and caddy_ca_pem is undefined) | ternary('no', 'yes') }}"
+  tasks:
+    - name: Wait for the Cloudera Manager API
+      cloudera.cluster.cm_version_info:
+      register: __cm
+      until: __cm is succeeded
+      retries: 60
+      delay: 15
+
+    - name: Ensure the Cloudera Management Service is started
+      cloudera.cluster.cm_service:
+        state: started
+
+    - name: Query the clusters
+      cloudera.cluster.cluster_info:
+      register: __clusters
+
+    - name: Ensure the base clusters are started
+      cloudera.cluster.cluster:
+        name: "{{ __cluster.name }}"
+        state: started
+      loop: "{{ __clusters.clusters | selectattr('cluster_type', 'eq', 'BASE_CLUSTER') | list }}"
+      loop_control:
+        loop_var: __cluster
+        label: "{{ __cluster.name }}"
+
+    - name: Wait for the Cloudera Management Service to be healthy
+      cloudera.cluster.cm_service_info:
+      register: __cms
+      until: __cms.service.service_state == 'STARTED' and __cms.service.health_summary == 'GOOD'
+      retries: 20
+      delay: 30
+
+    - name: Wait for the base clusters to be healthy
+      cloudera.cluster.cluster_info:
+        name: "{{ __cluster.name }}"
+      loop: "{{ __clusters.clusters | selectattr('cluster_type', 'eq', 'BASE_CLUSTER') | list }}"
+      loop_control:
+        loop_var: __cluster
+        label: "{{ __cluster.name }}"
+      register: __health
+      until: __health.clusters | map(attribute='entity_status') | first == 'GOOD_HEALTH'
+      retries: 20
+      delay: 30
