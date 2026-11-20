@@ -13,6 +13,36 @@
 # limitations under the License.
 
 ---
+- name: Stop the cluster services
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/cloudera.cluster.deployment:
+      host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ (caddy_self_signed is defined and caddy_ca_pem is undefined) | ternary('no', 'yes') }}"
+  tasks:
+    - name: Query the clusters
+      cloudera.cluster.cluster_info:
+      register: __clusters
+
+    - name: Ensure the base clusters are stopped
+      cloudera.cluster.cluster:
+        name: "{{ __cluster.name }}"
+        state: stopped
+      loop: "{{ __clusters.clusters | selectattr('cluster_type', 'eq', 'BASE_CLUSTER') | list }}"
+      loop_control:
+        loop_var: __cluster
+        label: "{{ __cluster.name }}"
+
+    - name: Ensure the Cloudera Management Service is stopped
+      cloudera.cluster.cm_service:
+        state: stopped
+
 - name: Pause deployment infrastructure
   hosts: localhost
   connection: local
