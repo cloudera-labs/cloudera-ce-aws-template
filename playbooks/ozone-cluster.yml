@@ -431,6 +431,17 @@
           - type: NODEMANAGER
             config:
               yarn_nodemanager_local_dirs: "{{ yarn_nodemanager_local_dirs | string }}"
+          - type: RESOURCEMANAGER
+            config:
+              # The RM does not retry its HDFS state store by default and fails if the NameNode is in safe mode at start
+              resourcemanager_config_safety_valve: |
+                <property><name>yarn.resourcemanager.fs.state-store.num-retries</name><value>120</value></property>
+                <property><name>yarn.resourcemanager.fs.state-store.retry-interval-ms</name><value>1000</value></property>
+          - type: JOBHISTORY
+            config:
+              # The JHS exits if it starts before the NameNode is ready, so have the agent retry and restart it
+              process_start_retries: 10
+              process_auto_restart: true
           - type: GATEWAY
             config:
               mapred_submit_replication: "{{ groups['cluster'] | map('extract', hostvars) | selectattr('host_template', 'eq', 'Worker') | length }}"
