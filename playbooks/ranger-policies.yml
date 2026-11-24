@@ -1,0 +1,967 @@
+---
+- name: Update/Create ranger policies
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: ranger
+  vars:
+    ranger_api_endpoint: "https://knox.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}:443/gateway/cdp-proxy-api/ranger"
+    ranger_username: "admin"
+    ranger_password: "{{ common_password }}"
+    validate_certs: false
+    groups_to_add: "cdp-admins"
+  module_defaults:
+    group/cloudera.cluster.deployment:
+      host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ (caddy_self_signed is defined and caddy_ca_pem is undefined) | ternary('no', 'yes') }}"
+  tasks:
+    # ============================================================================
+    # DISCOVER THE DEPLOYED SERVICES
+    # ============================================================================
+
+    - name: Get the base clusters from Cloudera Manager
+      cloudera.cluster.cluster_info:
+      register: __clusters
+
+    - name: Get the services of the base clusters
+      cloudera.cluster.service_info:
+        cluster: "{{ __cluster.name }}"
+      loop: "{{ __clusters.clusters | selectattr('cluster_type', 'eq', 'BASE_CLUSTER') | list }}"
+      loop_control:
+        loop_var: __cluster
+        label: "{{ __cluster.name }}"
+      register: __cluster_services
+
+    - name: Set the deployed services
+      ansible.builtin.set_fact:
+        deployed_services: "{{ __cluster_services.results | map(attribute='services') | flatten }}"
+
+    # The NiFi and NiFi Registry Ranger services are named after the cluster that hosts them,
+    # e.g. full-base-cluster_nifi, so take the name from Cloudera Manager instead of hard-coding it
+    - name: Set the deployed service types and the NiFi cluster name
+      ansible.builtin.set_fact:
+        deployed_service_types: "{{ deployed_services | map(attribute='type') | unique | list }}"
+        cluster_name: "{{ deployed_services | selectattr('type', 'in', ['NIFI', 'NIFIREGISTRY']) | map(attribute='cluster_name') | first | default('') }}"
+
+    - name: Show which Ranger policy sections apply to this cluster
+      ansible.builtin.debug:
+        msg:
+          - "Deployed service types: {{ deployed_service_types | join(', ') }}"
+          - "Cluster name for the NiFi Ranger services: {{ cluster_name | default('n/a', true) }}"
+          - "Kafka policies: {{ 'KAFKA' in deployed_service_types }}"
+          - "SSB Kafka policies: {{ 'KAFKA' in deployed_service_types and 'SQL_STREAM_BUILDER' in deployed_service_types }}"
+          - "NiFi and EFM policies: {{ 'NIFI' in deployed_service_types }}"
+          - "NiFi Registry policies: {{ 'NIFIREGISTRY' in deployed_service_types }}"
+          - "Kudu policies: {{ 'KUDU' in deployed_service_types }}"
+
+    # ============================================================================
+    # KAFKA POLICIES
+    # ============================================================================
+
+    - name: Apply Kafka policies
+      when: "'KAFKA' in deployed_service_types"
+      block:
+        - name: "Kafka Policy Update: 'all - consumergroup'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - consumergroup"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "consume"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                groups:
+                  - "{{ groups_to_add }}"
+            state: present
+
+        - name: "Kafka Policy Update: 'all - topic'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - topic"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "publish"
+                    is_allowed: true
+                  - type: "consume"
+                    is_allowed: true
+                  - type: "configure"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                  - type: "describe_configs"
+                    is_allowed: true
+                  - type: "alter_configs"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                groups:
+                  - "{{ groups_to_add }}"
+            state: present
+
+        - name: "Kafka Policy Update: 'all - transactionalid'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - transactionalid"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "publish"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                groups:
+                  - "{{ groups_to_add }}"
+            state: present
+
+        - name: "Kafka Policy Update: 'all - cluster'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - cluster"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "configure"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "kafka_admin"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "idempotent_write"
+                    is_allowed: true
+                  - type: "describe_configs"
+                    is_allowed: true
+                  - type: "alter_configs"
+                    is_allowed: true
+                  - type: "cluster_action"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                groups:
+                  - "{{ groups_to_add }}"
+            state: present
+
+        - name: "Kafka Policy Update: 'all - cluster' (admin user and cdp-users)"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - cluster"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "configure"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "kafka_admin"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "idempotent_write"
+                    is_allowed: true
+                  - type: "describe_configs"
+                    is_allowed: true
+                  - type: "alter_configs"
+                    is_allowed: true
+                  - type: "cluster_action"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                users:
+                  - "admin"
+              - accesses:
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "idempotent_write"
+                    is_allowed: true
+                groups:
+                  - "cdp-users"
+            state: present
+
+        - name: "Kafka Policy Update: 'all - delegationtoken'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - delegationtoken"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "describe"
+                    is_allowed: true
+                groups:
+                  - "{{ groups_to_add }}"
+            state: present
+
+        - name: "Kafka Policy Update: 'ATLAS_HOOK'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "ATLAS_HOOK"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "publish"
+                    is_allowed: true
+                groups:
+                  - "{{ groups_to_add }}"
+            state: present
+
+
+    # ============================================================================
+    # KAFKA-SSB POLICIES
+    # ============================================================================
+
+    - name: Apply SSB Kafka policies
+      when: "'KAFKA' in deployed_service_types and 'SQL_STREAM_BUILDER' in deployed_service_types"
+      block:
+        - name: "Kafka Policy SSB Add: 'all - consumergroup'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - consumergroup"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "consume"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                users:
+                  - "ssb"
+            state: present
+
+        - name: "Kafka Policy SSB Add: 'all - topic'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - topic"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "consume"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                users:
+                  - "ssb"
+            state: present
+
+        - name: "Kafka Policy Create: 'SSB - Internal topics'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "SSB - Internal topics"
+            service: "cm_kafka"
+            service_type: "kafka"
+            description: "SSB - Internal topics policy"
+            resources:
+              topic:
+                values:
+                  - "__ssb*"
+            state: present
+
+        - name: "Kafka Policy Update: 'SSB - Internal topics'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "SSB - Internal topics"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "publish"
+                    is_allowed: true
+                  - type: "consume"
+                    is_allowed: true
+                  - type: "configure"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                  - type: "describe_configs"
+                    is_allowed: true
+                  - type: "alter_configs"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                users:
+                  - "ssb"
+                groups:
+                  - "cdp-users"
+            state: present
+
+        - name: "Kafka Policy Create: 'SSB - Internal consumer groups'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "SSB - Internal consumer groups"
+            service: "cm_kafka"
+            service_type: "kafka"
+            description: "SSB - Internal consumer groups policy"
+            resources:
+              consumergroup:
+                values:
+                  - "__ssb*"
+            state: present
+
+        - name: "Kafka Policy Update: 'SSB - Internal consumer groups'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "SSB - Internal consumer groups"
+            service: "cm_kafka"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "publish"
+                    is_allowed: true
+                  - type: "consume"
+                    is_allowed: true
+                  - type: "describe"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                users:
+                  - "ssb"
+                groups:
+                  - "cdp-users"
+            state: present
+
+    # ============================================================================
+    # NIFI POLICIES
+    # ============================================================================
+
+    - name: Apply NiFi and EFM policies
+      when: "'NIFI' in deployed_service_types"
+      block:
+        - name: "NiFi Policy Create: 'Data Access'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Data Access"
+            service: "{{ cluster_name }}_nifi"
+            service_type: "nifi"
+            description: "Data Access policy"
+            resources:
+              nifi-resource:
+                values:
+                  - "/data/*"
+            state: present
+
+        - name: "NiFi Policy Create: 'Provenance'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Provenance"
+            service: "{{ cluster_name }}_nifi"
+            service_type: "nifi"
+            description: "Provenance policy"
+            resources:
+              nifi-resource:
+                values:
+                  - "/provenance"
+                  - "/provenance-data/*/*"
+            state: present
+
+        - name: "NiFi Policy Create: 'System'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "System"
+            service: "{{ cluster_name }}_nifi"
+            service_type: "nifi"
+            description: "System policy"
+            resources:
+              nifi-resource:
+                values:
+                  - "/system"
+            state: present
+
+        - name: "NiFi Policy Update: 'Flow'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Flow"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+                  - "cdp-users"
+            state: present
+
+        - name: "NiFi Policy Update: 'Restricted Components'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Restricted Components"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Policy Update: 'Controller'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Controller"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Policy Update: 'Policies'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Policies"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Policy Update: 'Tenants'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Tenants"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Policy Update: 'Data Access'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Data Access"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+                  - "nifi"
+                  - "cdp-users"
+            state: present
+
+        - name: "NiFi Policy Update: 'Provenance'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Provenance"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+                  - "nifi"
+                  - "cdp-users"
+            state: present
+
+        # Add permissions to System policy
+        - name: "NiFi Policy Update: 'System'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "System"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+                  - "nifi"
+            state: present
+
+        - name: "NiFi Policy Update: 'Root Process Group'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Root Process Group"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+                  - "nifi"
+            state: present
+
+        # ============================================================================
+        # EFM POLICIES
+        # ============================================================================
+
+
+        - name: "NiFi Policy Create: 'Site-To-Site'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Site-To-Site"
+            service: "{{ cluster_name }}_nifi"
+            service_type: "nifi"
+            description: "Site-To-Site policy for EFM"
+            resources:
+              nifi-resource:
+                values:
+                  - "/site-to-site"
+            state: present
+
+        - name: "NiFi Policy Create: 'Input ports'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Input ports"
+            service: "{{ cluster_name }}_nifi"
+            service_type: "nifi"
+            description: "Input ports policy for EFM"
+            resources:
+              nifi-resource:
+                values:
+                  - "/data-transfer/input-ports/*"
+            state: present
+
+        - name: "NiFi Policy Create: 'Output ports'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Output ports"
+            service: "{{ cluster_name }}_nifi"
+            service_type: "nifi"
+            description: "Output ports policy for EFM"
+            resources:
+              nifi-resource:
+                values:
+                  - "/data-transfer/output-ports/*"
+            state: present
+
+        - name: "NiFi Policy Update: 'Site-To-Site'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Site-To-Site"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                users:
+                  - "{{ ansible_fqdn | default('nifi-node') }}"
+                groups:
+                  - "nifi"
+            state: present
+
+        - name: "NiFi Policy Update: 'Input ports'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Input ports"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "WRITE"
+                    is_allowed: true
+                users:
+                  - "{{ ansible_fqdn | default('nifi-node') }}"
+                groups:
+                  - "nifi"
+            state: present
+
+        - name: "NiFi Policy Update: 'Output ports'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Output ports"
+            service: "{{ cluster_name }}_nifi"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "WRITE"
+                    is_allowed: true
+                users:
+                  - "{{ ansible_fqdn | default('nifi-node') }}"
+                groups:
+                  - "nifi"
+            state: present
+
+    # ============================================================================
+    # NIFI REGISTRY POLICIES
+    # ============================================================================
+
+    - name: Apply NiFi Registry policies
+      when: "'NIFIREGISTRY' in deployed_service_types"
+      block:
+        - name: "NiFi Registry Policy Update: 'Actuator'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Actuator"
+            service: "{{ cluster_name }}_nifiregistry"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                  - type: "DELETE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Registry Policy Update: 'Buckets'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Buckets"
+            service: "{{ cluster_name }}_nifiregistry"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                  - type: "DELETE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Registry Policy Update: 'Tenants'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Tenants"
+            service: "{{ cluster_name }}_nifiregistry"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Registry Policy Update: 'Policies'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Policies"
+            service: "{{ cluster_name }}_nifiregistry"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Registry Policy Update: 'Swagger'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Swagger"
+            service: "{{ cluster_name }}_nifiregistry"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                  - type: "DELETE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "NiFi Registry Policy Update: 'Proxies'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "Proxies"
+            service: "{{ cluster_name }}_nifiregistry"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "READ"
+                    is_allowed: true
+                  - type: "WRITE"
+                    is_allowed: true
+                  - type: "DELETE"
+                    is_allowed: true
+                groups:
+                  - "cdp-admins"
+            state: present 
+
+    # ============================================================================
+    # KUDU POLICIES
+    # ============================================================================
+
+    - name: Apply Kudu policies
+      when: "'KUDU' in deployed_service_types"
+      block:
+        - name: "Kudu Policy Update: 'all - database'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - database"
+            service: "cm_kudu"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "all"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                  - type: "drop"
+                    is_allowed: true
+                  - type: "insert"
+                    is_allowed: true
+                  - type: "metadata"
+                    is_allowed: true
+                  - type: "select"
+                    is_allowed: true
+                  - type: "update"
+                    is_allowed: true
+                users:
+                  - "kudu"
+                  - "ssb"
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "Kudu Policy Update: 'all - database, table'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - database, table"
+            service: "cm_kudu"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "all"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                  - type: "drop"
+                    is_allowed: true
+                  - type: "insert"
+                    is_allowed: true
+                  - type: "metadata"
+                    is_allowed: true
+                  - type: "select"
+                    is_allowed: true
+                  - type: "update"
+                    is_allowed: true
+                users:
+                  - "kudu"
+                  - "ssb"
+                groups:
+                  - "cdp-admins"
+            state: present
+
+        - name: "Kudu Policy Update: 'all - database, table, column'"
+          cloudera.services.ranger_policy:
+            url: "{{ ranger_api_endpoint }}"
+            url_username: "{{ ranger_username }}"
+            url_password: "{{ ranger_password }}"
+            validate_certs: "{{ validate_certs }}"
+            name: "all - database, table, column"
+            service: "cm_kudu"
+            merged: true
+            access_policies:
+              - accesses:
+                  - type: "all"
+                    is_allowed: true
+                  - type: "alter"
+                    is_allowed: true
+                  - type: "create"
+                    is_allowed: true
+                  - type: "delete"
+                    is_allowed: true
+                  - type: "drop"
+                    is_allowed: true
+                  - type: "insert"
+                    is_allowed: true
+                  - type: "metadata"
+                    is_allowed: true
+                  - type: "select"
+                    is_allowed: true
+                  - type: "update"
+                    is_allowed: true
+                users:
+                  - "kudu"
+                  - "ssb"
+                groups:
+                  - "cdp-admins"
+            state: present

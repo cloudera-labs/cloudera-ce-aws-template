@@ -25,6 +25,7 @@
 # Playbooks (base, ECS)
 :!playbooks/pause.yml
 :!playbooks/resume.yml
+:!playbooks/ranger-policies.yml
 
 # Playbooks (base)
 :!playbooks/full-cluster.yml
