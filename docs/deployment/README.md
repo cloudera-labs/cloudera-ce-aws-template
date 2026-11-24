@@ -73,3 +73,13 @@ After stages 1–3, deploy any one of the following clusters:
 
 !!! tip
     The cluster playbooks are designed to be run after the base deployment (infrastructure + services + CMS).
+
+## Apply Ranger Policies (Optional)
+
+Once the cluster is running, grant the `cdp-admins` and `cdp-users` groups access to its services through Apache Ranger:
+
+```bash
+ansible-navigator run playbooks/ranger-policies.yml -e @config.yml
+```
+
+The same playbook works for every cluster topology: it detects which services the cluster has and only applies the matching policies. See [Ranger Policies](ranger-policies.md) for details.
